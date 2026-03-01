@@ -42,10 +42,8 @@ export async function initEmbeddingStore(
     initialized = true;
     return true;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[semantic-search] Failed to init store: ${msg}`);
     initialized = false;
-    return false;
+    throw e;
   }
 }
 

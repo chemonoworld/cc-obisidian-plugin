@@ -87,10 +87,12 @@ export async function semanticSearchTool(args: {
 
   // Initialize store if needed
   if (!isAvailable()) {
-    const success = await initEmbeddingStore(vaultPath);
-    if (!success) {
+    try {
+      await initEmbeddingStore(vaultPath);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       return fail(
-        "Semantic search is not available. " +
+        `Semantic search init failed: ${msg}\n\n` +
           "Ensure optional dependencies are installed: " +
           "npm install @huggingface/transformers better-sqlite3 sqlite-vec",
       );

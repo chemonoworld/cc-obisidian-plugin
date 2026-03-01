@@ -50,13 +50,15 @@ describe("semanticSearchTool", () => {
     expect(res.isError).toBe(false);
   });
 
-  it("returns error when init fails", async () => {
-    vi.mocked(embeddingsIndex.initEmbeddingStore).mockResolvedValue(false);
+  it("returns error with details when init fails", async () => {
+    vi.mocked(embeddingsIndex.initEmbeddingStore).mockRejectedValue(
+      new Error("better-sqlite3 is not installed"),
+    );
 
     const res = await semanticSearchTool({ query: "test" });
 
     expect(res.isError).toBe(true);
-    expect(res.content[0].text).toContain("not available");
+    expect(res.content[0].text).toContain("better-sqlite3 is not installed");
   });
 
   it("returns formatted results on success", async () => {
