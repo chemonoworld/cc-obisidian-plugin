@@ -7,22 +7,61 @@ import { ok, fail } from "./helpers.js";
 import type { ToolResponse } from "../types.js";
 
 /**
- * Resolve vault name to filesystem path via the Obsidian CLI.
+ * Resolve vault name to filesystem path.
+ * Tries Obsidian CLI first, then falls back to reading obsidian.json directly.
  */
 async function resolveVaultPath(vaultName: string): Promise<string | null> {
+  // Try CLI first
   try {
     const { execObsidian } = await import("../cli.js");
     const result = await execObsidian("vaults", { format: "json" });
-    if (!result.success || !result.data) return null;
-
-    const vaults = result.data as Array<{ name: string; path?: string }>;
-    const match = vaults.find(
-      (v) => v.name.toLowerCase() === vaultName.toLowerCase(),
-    );
-    return match?.path ?? null;
+    if (result.success && result.data) {
+      const vaults = result.data as Array<{ name: string; path?: string }>;
+      const match = vaults.find(
+        (v) => v.name.toLowerCase() === vaultName.toLowerCase(),
+      );
+      if (match?.path) return match.path;
+    }
   } catch {
-    return null;
+    // CLI unavailable or failed — try fallback
   }
+
+  // Fallback: read Obsidian's config file directly
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const { homedir, platform } = await import("node:os");
+
+    let configPath: string;
+    const os = platform();
+    if (os === "darwin") {
+      configPath = join(homedir(), "Library", "Application Support", "obsidian", "obsidian.json");
+    } else if (os === "win32") {
+      configPath = join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "obsidian", "obsidian.json");
+    } else {
+      configPath = join(homedir(), ".config", "obsidian", "obsidian.json");
+    }
+
+    const raw = await readFile(configPath, "utf-8");
+    const config = JSON.parse(raw) as {
+      vaults?: Record<string, { path?: string }>;
+    };
+    if (!config.vaults) return null;
+
+    const lowerName = vaultName.toLowerCase();
+    for (const vault of Object.values(config.vaults)) {
+      if (!vault.path) continue;
+      // Match by folder name
+      const folderName = vault.path.split("/").pop() ?? vault.path.split("\\").pop() ?? "";
+      if (folderName.toLowerCase() === lowerName) {
+        return vault.path;
+      }
+    }
+  } catch {
+    // Config file not found or unreadable
+  }
+
+  return null;
 }
 
 export async function semanticSearchTool(args: {
