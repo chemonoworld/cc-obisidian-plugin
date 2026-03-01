@@ -42,6 +42,14 @@ export async function getEmbedding(text: string, modelId: string = DEFAULT_MODEL
   return new Float32Array(array);
 }
 
+/**
+ * Generate embedding for a search query.
+ * Separate function to allow query-specific processing in the future.
+ */
+export async function getQueryEmbedding(text: string, modelId: string = DEFAULT_MODEL): Promise<Float32Array> {
+  return getEmbedding(text, modelId);
+}
+
 export async function getEmbeddings(texts: string[], modelId: string = DEFAULT_MODEL): Promise<Float32Array[]> {
   if (texts.length === 0) return [];
   if (texts.length === 1) return [await getEmbedding(texts[0], modelId)];

@@ -163,9 +163,13 @@ const tools: ToolDef[] = [
         .boolean()
         .optional()
         .describe("Force re-indexing before search (default: false)"),
+      translations: z
+        .array(z.string())
+        .optional()
+        .describe("Additional translated queries for cross-lingual search"),
     },
     handler: (a) =>
-      semanticSearchTool(a as { query: string; limit?: number; reindex?: boolean }),
+      semanticSearchTool(a as { query: string; limit?: number; reindex?: boolean; translations?: string[] }),
   },
 
   // --- Vault Tools ---

@@ -4,7 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { chunkMarkdown } from "./chunk.js";
 import { openStore, chunkId } from "./store.js";
 import type { StoreHandle, ChunkRecord } from "./store.js";
-import { getEmbedding, getEmbeddings } from "./model.js";
+import { getQueryEmbedding, getEmbeddings } from "./model.js";
 import { detectChanges } from "./change.js";
 import { createHash } from "node:crypto";
 
@@ -54,7 +54,7 @@ export async function initEmbeddingStore(
 export async function semanticSearch(
   vaultPath: string,
   query: string,
-  options?: { limit?: number; reindex?: boolean; modelId?: string },
+  options?: { limit?: number; reindex?: boolean; modelId?: string; translations?: string[] },
 ): Promise<SemanticSearchResult[]> {
   if (store === null) {
     throw new Error("Embedding store not initialized. Call initEmbeddingStore() first.");
@@ -67,16 +67,58 @@ export async function semanticSearch(
   // When reindex is true, pass empty state to force full re-embedding.
   await indexVault(vaultPath, modelId, options?.reindex);
 
-  // Query
-  const queryEmbedding = await getEmbedding(query, modelId);
-  const results = store.search(queryEmbedding, limit);
+  // Build list of all queries (original + translations)
+  const queries = [query, ...(options?.translations ?? [])];
 
-  return results.map((r) => ({
-    filePath: r.filePath,
-    heading: r.heading,
-    content: r.content,
-    score: r.score,
-  }));
+  if (queries.length === 1) {
+    // Single query — fast path
+    const queryEmbedding = await getQueryEmbedding(query, modelId);
+    const results = store.search(queryEmbedding, limit);
+    return results.map((r) => ({
+      filePath: r.filePath,
+      heading: r.heading,
+      content: r.content,
+      score: r.score,
+    }));
+  }
+
+  // Multi-query: round-robin interleave by rank.
+  // Each query contributes equally so translation results aren't drowned out
+  // by the original query's noise.
+  const searchLimit = limit * 2;
+  const perQuery: Array<Array<{ key: string; filePath: string; heading: string | null; content: string; score: number }>> = [];
+
+  for (const q of queries) {
+    const embedding = await getQueryEmbedding(q, modelId);
+    const results = store.search(embedding, searchLimit);
+    perQuery.push(
+      results.map((r) => ({
+        key: `${r.filePath}\0${r.chunkIndex}`,
+        filePath: r.filePath,
+        heading: r.heading,
+        content: r.content,
+        score: r.score,
+      })),
+    );
+  }
+
+  // Round-robin: pick rank 0 from each query, then rank 1, etc. Skip duplicates.
+  const seen = new Set<string>();
+  const merged: SemanticSearchResult[] = [];
+  const maxRank = Math.max(...perQuery.map((r) => r.length));
+
+  for (let rank = 0; rank < maxRank && merged.length < limit; rank++) {
+    for (const results of perQuery) {
+      if (rank >= results.length) continue;
+      const r = results[rank];
+      if (seen.has(r.key)) continue;
+      seen.add(r.key);
+      merged.push({ filePath: r.filePath, heading: r.heading, content: r.content, score: r.score });
+      if (merged.length >= limit) break;
+    }
+  }
+
+  return merged;
 }
 
 /**

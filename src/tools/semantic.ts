@@ -68,6 +68,7 @@ export async function semanticSearchTool(args: {
   query: string;
   limit?: number;
   reindex?: boolean;
+  translations?: string[];
 }): Promise<ToolResponse> {
   const { getVault } = await import("../config.js");
 
@@ -103,6 +104,7 @@ export async function semanticSearchTool(args: {
     const results = await semanticSearch(vaultPath, args.query, {
       limit: args.limit,
       reindex: args.reindex,
+      translations: args.translations,
     });
 
     if (results.length === 0) {

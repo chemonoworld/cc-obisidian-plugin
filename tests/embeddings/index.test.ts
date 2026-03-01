@@ -27,6 +27,7 @@ vi.mock("../../src/embeddings/chunk.js", () => ({
 
 vi.mock("../../src/embeddings/model.js", () => ({
   getEmbedding: vi.fn().mockResolvedValue(new Float32Array(1024)),
+  getQueryEmbedding: vi.fn().mockResolvedValue(new Float32Array(1024)),
   getEmbeddings: vi.fn().mockResolvedValue([new Float32Array(1024)]),
 }));
 
@@ -113,7 +114,7 @@ describe("embeddings/index facade", () => {
       const results = await semanticSearch("/vault", "test query");
 
       expect(changeModule.detectChanges).toHaveBeenCalled();
-      expect(modelModule.getEmbedding).toHaveBeenCalledWith("test query", undefined);
+      expect(modelModule.getQueryEmbedding).toHaveBeenCalledWith("test query", undefined);
       expect(results).toHaveLength(1);
       expect(results[0].score).toBe(0.95);
     });
