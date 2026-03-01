@@ -17,7 +17,7 @@ async function getPipeline(modelId: string) {
   pipelinePromise = (async () => {
     try {
       const { pipeline } = await import('@huggingface/transformers');
-      pipelineInstance = await pipeline('feature-extraction', modelId, { dtype: 'int8' });
+      pipelineInstance = await pipeline('feature-extraction', modelId, { dtype: 'fp16' });
       currentModelId = modelId;
       return pipelineInstance;
     } catch (e) {

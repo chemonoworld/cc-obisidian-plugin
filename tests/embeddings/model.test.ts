@@ -33,7 +33,7 @@ describe("model", () => {
     expect(mockPipeline).toHaveBeenCalledWith(
       "feature-extraction",
       "Xenova/bge-m3",
-      { dtype: "int8" },
+      { dtype: "fp16" },
     );
 
     expect(result).toBeInstanceOf(Float32Array);
@@ -89,7 +89,7 @@ describe("model", () => {
     expect(mockPipeline).toHaveBeenCalledWith(
       "feature-extraction",
       "Xenova/multilingual-e5-small",
-      { dtype: "int8" },
+      { dtype: "fp16" },
     );
   });
 
