@@ -183,15 +183,35 @@ async function detectByGit(
   };
 }
 
+async function ensureGitRepo(vaultPath: string): Promise<boolean> {
+  try {
+    await execFileAsync('git', ['-C', vaultPath, 'rev-parse', '--is-inside-work-tree']);
+    return true;
+  } catch {
+    // Not a git repo — initialize one
+  }
+  try {
+    await execFileAsync('git', ['-C', vaultPath, 'init', '-b', 'main']);
+    await execFileAsync('git', ['-C', vaultPath, 'add', '-A']);
+    await execFileAsync('git', ['-C', vaultPath, 'commit', '-m', 'semantic-search: initial index']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function detectChanges(
   vaultPath: string,
   indexedFiles: IndexedFile[],
   lastCommit: string | null
 ): Promise<ChangeSet> {
+  // Ensure vault has a git repo for efficient change tracking
+  await ensureGitRepo(vaultPath);
+
   try {
     return await detectByGit(vaultPath, indexedFiles, lastCommit);
   } catch {
-    // Git not available or not a git repo — fall back to hash scan
+    // Git not available — fall back to hash scan
   }
 
   try {
