@@ -90,7 +90,7 @@ export function openStore(dbPath: string): StoreHandle {
   try {
     db.exec(`
       CREATE VIRTUAL TABLE chunks_vec USING vec0(
-        chunk_id PRIMARY KEY,
+        chunk_id text primary key,
         embedding float[1024] distance_metric=cosine
       )
     `);
