@@ -101,8 +101,9 @@ async function detectByGit(
   indexedFiles: IndexedFile[],
   lastCommit: string | null
 ): Promise<ChangeSet> {
-  // Verify this is a git repo
+  // Verify this is a git repo and ensure non-ASCII paths aren't escaped
   await execFileAsync('git', ['-C', vaultPath, 'rev-parse', '--is-inside-work-tree']);
+  await execFileAsync('git', ['-C', vaultPath, 'config', 'core.quotePath', 'false']);
 
   // Get HEAD commit
   const { stdout: headOut } = await execFileAsync('git', ['-C', vaultPath, 'rev-parse', 'HEAD']);
@@ -186,18 +187,25 @@ async function detectByGit(
 async function ensureGitRepo(vaultPath: string): Promise<boolean> {
   try {
     await execFileAsync('git', ['-C', vaultPath, 'rev-parse', '--is-inside-work-tree']);
-    return true;
   } catch {
     // Not a git repo — initialize one
+    try {
+      await execFileAsync('git', ['-C', vaultPath, 'init', '-b', 'main']);
+      // Prevent git from escaping non-ASCII filenames (Korean, etc.)
+      await execFileAsync('git', ['-C', vaultPath, 'config', 'core.quotePath', 'false']);
+    } catch {
+      return false;
+    }
   }
+
+  // Always stage and commit pending changes so git diff is accurate
   try {
-    await execFileAsync('git', ['-C', vaultPath, 'init', '-b', 'main']);
     await execFileAsync('git', ['-C', vaultPath, 'add', '-A']);
-    await execFileAsync('git', ['-C', vaultPath, 'commit', '-m', 'semantic-search: initial index']);
-    return true;
+    await execFileAsync('git', ['-C', vaultPath, 'commit', '-m', 'semantic-search: auto-index']);
   } catch {
-    return false;
+    // Nothing to commit — fine
   }
+  return true;
 }
 
 export async function detectChanges(
@@ -205,7 +213,7 @@ export async function detectChanges(
   indexedFiles: IndexedFile[],
   lastCommit: string | null
 ): Promise<ChangeSet> {
-  // Ensure vault has a git repo for efficient change tracking
+  // Ensure vault has git repo and all changes are committed
   await ensureGitRepo(vaultPath);
 
   try {
