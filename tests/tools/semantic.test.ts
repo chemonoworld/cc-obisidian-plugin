@@ -11,7 +11,6 @@ vi.mock("../../src/cli.js", () => ({
 
 vi.mock("../../src/config.js", () => ({
   getVault: vi.fn(() => "TestVault"),
-  getConfig: vi.fn(() => ({ defaultVault: "TestVault", embedding: { enabled: true } })),
 }));
 
 vi.mock("../../src/embeddings/index.js", () => ({
@@ -27,20 +26,10 @@ const { semanticSearchTool } = await import("../../src/tools/semantic.js");
 describe("semanticSearchTool", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(configModule.getConfig).mockReturnValue({ defaultVault: "TestVault", embedding: { enabled: true } });
     vi.mocked(configModule.getVault).mockReturnValue("TestVault");
     vi.mocked(embeddingsIndex.isAvailable).mockReturnValue(false);
     vi.mocked(embeddingsIndex.initEmbeddingStore).mockResolvedValue(true);
     vi.mocked(embeddingsIndex.semanticSearch).mockResolvedValue([]);
-  });
-
-  it("returns error when embedding not enabled", async () => {
-    vi.mocked(configModule.getConfig).mockReturnValue({ defaultVault: "TestVault" });
-
-    const res = await semanticSearchTool({ query: "test" });
-
-    expect(res.isError).toBe(true);
-    expect(res.content[0].text).toContain("not enabled");
   });
 
   it("returns error when no vault configured", async () => {

@@ -30,16 +30,8 @@ export async function semanticSearchTool(args: {
   limit?: number;
   reindex?: boolean;
 }): Promise<ToolResponse> {
-  // Check if semantic search is enabled in config
-  const { getVault, getConfig } = await import("../config.js");
-  const config = getConfig();
-  if (!config.embedding?.enabled) {
-    return fail(
-      "Semantic search is not enabled. Set `embedding.enabled: true` in config.",
-    );
-  }
+  const { getVault } = await import("../config.js");
 
-  // Get vault name from config
   const vaultName = getVault();
   if (!vaultName) {
     return fail("No vault configured. Use set_vault to configure a vault.");

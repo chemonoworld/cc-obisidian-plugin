@@ -33,7 +33,6 @@ export interface VaultEntry {
 export interface EmbeddingConfig {
   model?: string;
   dbPath?: string;
-  enabled: boolean;
 }
 
 export interface Config {
