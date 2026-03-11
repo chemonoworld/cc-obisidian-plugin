@@ -1,5 +1,5 @@
 import { execFile as nodeExecFile } from 'node:child_process';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join, relative } from 'node:path';
 
@@ -19,6 +19,19 @@ function execFileAsync(
 }
 
 const EXCLUDED_DIRS = new Set(['.obsidian', 'node_modules', '.git']);
+
+const GITIGNORE_MARKER = '# cc-plugin: semantic search (auto-generated)';
+const GITIGNORE_RULES = [
+  GITIGNORE_MARKER,
+  '.obsidian/*',
+  '!.obsidian/plugins/',
+  '.obsidian/plugins/*',
+  '!.obsidian/plugins/cc-plugin/',
+  '.obsidian/plugins/cc-plugin/*',
+  '!.obsidian/plugins/cc-plugin/embeddings.db',
+  '!.obsidian/plugins/cc-plugin/embeddings.db-wal',
+  '!.obsidian/plugins/cc-plugin/embeddings.db-shm',
+].join('\n');
 
 export interface IndexedFile {
   file_path: string;
@@ -184,6 +197,32 @@ async function detectByGit(
   };
 }
 
+async function ensureGitignore(vaultPath: string): Promise<boolean> {
+  const gitignorePath = join(vaultPath, '.gitignore');
+  let content = '';
+  try {
+    content = await readFile(gitignorePath, 'utf-8');
+  } catch {
+    // No .gitignore yet
+  }
+
+  if (content.includes(GITIGNORE_MARKER)) return false;
+
+  const newContent = content
+    ? content.trimEnd() + '\n\n' + GITIGNORE_RULES + '\n'
+    : GITIGNORE_RULES + '\n';
+  await writeFile(gitignorePath, newContent, 'utf-8');
+
+  // Remove newly-ignored files from the index so they stop being tracked
+  try {
+    await execFileAsync('git', ['-C', vaultPath, 'rm', '-r', '--cached', '.obsidian/']);
+  } catch {
+    // May fail if .obsidian/ was never tracked — fine
+  }
+
+  return true;
+}
+
 async function ensureGitRepo(vaultPath: string): Promise<boolean> {
   try {
     await execFileAsync('git', ['-C', vaultPath, 'rev-parse', '--is-inside-work-tree']);
@@ -198,14 +237,74 @@ async function ensureGitRepo(vaultPath: string): Promise<boolean> {
     }
   }
 
-  // Always stage and commit pending changes so git diff is accurate
+  // Set up .gitignore to exclude .obsidian/ (except embeddings DB)
+  const gitignoreChanged = await ensureGitignore(vaultPath);
+  if (gitignoreChanged) {
+    try {
+      await execFileAsync('git', ['-C', vaultPath, 'add', '-A']);
+      await execFileAsync('git', [
+        '-C', vaultPath, 'commit', '-m',
+        'vault: setup .gitignore — exclude .obsidian/ except embeddings DB',
+      ]);
+    } catch {
+      // Nothing to commit — fine
+    }
+  }
+
+  // Stage and commit pending vault changes so git diff is accurate
   try {
     await execFileAsync('git', ['-C', vaultPath, 'add', '-A']);
-    await execFileAsync('git', ['-C', vaultPath, 'commit', '-m', 'semantic-search: auto-index']);
+    const { stdout: numstat } = await execFileAsync('git', [
+      '-C', vaultPath, 'diff', '--cached', '--numstat',
+    ]);
+    const fileCount = numstat.split('\n').filter((l) => l.trim()).length;
+    if (fileCount > 0) {
+      await execFileAsync('git', [
+        '-C', vaultPath, 'commit', '-m',
+        `vault: auto-commit ${fileCount} changed file${fileCount === 1 ? '' : 's'} before indexing`,
+      ]);
+    }
   } catch {
     // Nothing to commit — fine
   }
   return true;
+}
+
+export interface IndexStats {
+  added: number;
+  deleted: number;
+  mode: 'full' | 'incremental';
+}
+
+export async function commitIndexChanges(
+  vaultPath: string,
+  dbRelativePath: string,
+  stats: IndexStats,
+): Promise<void> {
+  try {
+    // Stage the DB and its WAL/SHM files
+    await execFileAsync('git', ['-C', vaultPath, 'add', dbRelativePath]);
+    await execFileAsync('git', ['-C', vaultPath, 'add', `${dbRelativePath}-wal`]).catch(() => {});
+    await execFileAsync('git', ['-C', vaultPath, 'add', `${dbRelativePath}-shm`]).catch(() => {});
+
+    // Check if there's anything staged
+    const { stdout: numstat } = await execFileAsync('git', [
+      '-C', vaultPath, 'diff', '--cached', '--numstat',
+    ]);
+    if (!numstat.trim()) return;
+
+    const parts: string[] = [];
+    if (stats.added > 0) parts.push(`${stats.added} added/modified`);
+    if (stats.deleted > 0) parts.push(`${stats.deleted} deleted`);
+    const detail = parts.length > 0 ? parts.join(', ') : 'no changes';
+
+    await execFileAsync('git', [
+      '-C', vaultPath, 'commit', '-m',
+      `semantic-search: ${stats.mode} index — ${detail}`,
+    ]);
+  } catch {
+    // Commit failed (nothing to commit, or git issue) — non-fatal
+  }
 }
 
 export async function detectChanges(

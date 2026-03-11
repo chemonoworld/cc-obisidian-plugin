@@ -93,8 +93,33 @@ plan 기반 구현 이후 발견/수정된 버그들을 시간순으로 정리.
 |------|--------|
 | `src/embeddings/model.ts` | `dtype: 'int8'` → `dtype: 'fp16'` |
 
+## 8. DB 변경사항 미커밋 + 커밋 메시지 개선 + .gitignore 관리
+
+**문제**:
+1. `ensureGitRepo()`가 인덱싱 **전에** 마크다운 변경을 커밋하지만, 인덱싱 **후** DB 변경사항(`embeddings.db`, `-wal`, `-shm`)은 커밋하지 않음. DB 변경이 항상 uncommitted 상태로 남음.
+2. 커밋 메시지가 `semantic-search: auto-index`로 고정되어 있어, 어떤 작업(전체/증분), 몇 개 파일이 변경됐는지 구분 불가.
+3. `.obsidian/` 디렉토리 전체가 git tracked 상태. 설정 파일 변경이 잡음으로 커밋됨.
+
+**수정**:
+1. `commitIndexChanges()` 함수 추가 — 인덱싱 완료 후 DB 파일을 staging하고 `semantic-search: {mode} index — N added/modified, N deleted` 형식으로 커밋
+2. `ensureGitRepo()` 커밋 메시지를 `vault: auto-commit N changed files before indexing`으로 변경 (파일 수 포함)
+3. `ensureGitignore()` 함수 추가 — `.gitignore`에 `.obsidian/*` 제외 규칙 자동 생성 (`.obsidian/plugins/cc-plugin/embeddings.db*`만 추적), `git rm -r --cached .obsidian/`로 기존 tracked 파일 제거
+
+**커밋 메시지 예시**:
+```
+vault: setup .gitignore — exclude .obsidian/ except embeddings DB
+vault: auto-commit 3 changed files before indexing
+semantic-search: incremental index — 3 added/modified, 1 deleted
+semantic-search: full index — 150 added/modified, 0 deleted
+```
+
+| File | Change |
+|------|--------|
+| `src/embeddings/change.ts` | `ensureGitignore()`, `commitIndexChanges()` 추가, `ensureGitRepo()` 커밋 메시지 개선 |
+| `src/embeddings/index.ts` | `commitIndexChanges()` 호출, `dbRelativePath` 추적 |
+
 ## Verification
 
 - `npx tsc --noEmit` — pass
-- `npx vitest run` — 109 tests pass
+- `npm run build` — pass
 - 각 fix별 E2E 검증 완료 (commit message 참조)

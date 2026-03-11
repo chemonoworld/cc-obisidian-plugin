@@ -16,6 +16,7 @@ vi.mock("node:child_process", () => {
 vi.mock("node:fs/promises", () => ({
   readdir: vi.fn(),
   readFile: vi.fn(),
+  writeFile: vi.fn(),
 }));
 
 // We need to re-import change.ts after mocks are set up.
@@ -26,6 +27,7 @@ const fsPromises = await import("node:fs/promises");
 const mockExecFile = vi.mocked(childProcess.execFile) as unknown as ReturnType<typeof vi.fn>;
 const mockReaddir = vi.mocked(fsPromises.readdir);
 const mockReadFile = vi.mocked(fsPromises.readFile);
+const mockWriteFile = vi.mocked(fsPromises.writeFile) as unknown as ReturnType<typeof vi.fn>;
 
 const { detectChanges } = await import("../../src/embeddings/change.js");
 
@@ -35,6 +37,19 @@ function setupGitRepo(options: {
   head?: string;
 } = {}) {
   const { diffOutput = "", statusOutput = "", head = "abc123" } = options;
+
+  // Mock readFile for .gitignore (ensureGitignore reads it)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mockReadFile.mockImplementation(async (path: any) => {
+    const pathStr = String(path);
+    if (pathStr.endsWith(".gitignore")) {
+      // Return content with marker so ensureGitignore is a no-op
+      return "# cc-plugin: semantic search (auto-generated)" as never;
+    }
+    throw new Error(`File not found: ${pathStr}`);
+  });
+
+  mockWriteFile.mockResolvedValue(undefined);
 
   mockExecFile.mockImplementation(
     (_cmd: string, args: string[], callback: (err: Error | null, stdout: string, stderr: string) => void) => {
