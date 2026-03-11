@@ -15,8 +15,8 @@ describe("Tool Registry", () => {
     vi.clearAllMocks();
   });
 
-  it("has 18 tools registered", () => {
-    expect(getAllTools().length).toBe(18);
+  it("has 20 tools registered", () => {
+    expect(getAllTools().length).toBe(20);
   });
 
   it("has unique tool names", () => {

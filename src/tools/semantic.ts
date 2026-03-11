@@ -1,6 +1,7 @@
 import {
   initEmbeddingStore,
   semanticSearch,
+  reindexVault,
   isAvailable,
 } from "../embeddings/index.js";
 import { ok, fail } from "./helpers.js";
@@ -10,7 +11,7 @@ import type { ToolResponse } from "../types.js";
  * Resolve vault name to filesystem path.
  * Tries Obsidian CLI first, then falls back to reading obsidian.json directly.
  */
-async function resolveVaultPath(vaultName: string): Promise<string | null> {
+export async function resolveVaultPath(vaultName: string): Promise<string | null> {
   // Try CLI first
   try {
     const { execObsidian } = await import("../cli.js");
@@ -62,6 +63,51 @@ async function resolveVaultPath(vaultName: string): Promise<string | null> {
   }
 
   return null;
+}
+
+export async function reindexTool(args: {
+  force?: boolean;
+}): Promise<ToolResponse> {
+  const { getVault } = await import("../config.js");
+
+  const vaultName = getVault();
+  if (!vaultName) {
+    return fail("No vault configured. Use set_vault to configure a vault.");
+  }
+
+  const vaultPath = await resolveVaultPath(vaultName);
+  if (!vaultPath) {
+    return fail(
+      `Could not resolve filesystem path for vault "${vaultName}". ` +
+        `Make sure the vault is accessible via the Obsidian CLI.`,
+    );
+  }
+
+  if (!isAvailable()) {
+    try {
+      await initEmbeddingStore(vaultPath);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return fail(
+        `Embedding store init failed: ${msg}\n\n` +
+          "Ensure optional dependencies are installed: " +
+          "npm install @huggingface/transformers better-sqlite3 sqlite-vec",
+      );
+    }
+  }
+
+  try {
+    const stats = await reindexVault(vaultPath, { force: args.force });
+    const mode = stats.mode === "full" ? "Full reindex" : "Incremental update";
+    return ok(
+      `${mode} complete.\n` +
+        `  Added/updated: ${stats.added} files\n` +
+        `  Deleted: ${stats.deleted} files`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return fail(`Reindex failed: ${msg}`);
+  }
 }
 
 export async function semanticSearchTool(args: {

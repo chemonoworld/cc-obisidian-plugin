@@ -3,7 +3,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as crud from "./tools/crud.js";
 import * as search from "./tools/search.js";
 import * as vault from "./tools/vault.js";
-import { semanticSearchTool } from "./tools/semantic.js";
+import { semanticSearchTool, reindexTool } from "./tools/semantic.js";
+import { autoLinkTool } from "./tools/auto-link.js";
 import type { ToolResponse } from "./types.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResponse>;
@@ -170,6 +171,34 @@ const tools: ToolDef[] = [
     },
     handler: (a) =>
       semanticSearchTool(a as { query: string; limit?: number; reindex?: boolean; translations?: string[] }),
+  },
+
+  {
+    name: "reindex",
+    description:
+      "Rebuild the semantic search embedding index for the vault. Use this to explicitly trigger reindexing when notes have changed. Defaults to full reindex; set force=false for incremental update only.",
+    schema: {
+      force: z
+        .boolean()
+        .optional()
+        .describe("Force full reindex (default: true). Set false for incremental update only."),
+    },
+    handler: (a) => reindexTool(a as { force?: boolean }),
+  },
+
+  // --- Auto-Link ---
+  {
+    name: "auto_link",
+    description:
+      "Automatically insert [[wiki links]] in a note by finding mentions of other note names in the vault. Scans the note content and wraps unlinked mentions with [[...]]. Skips frontmatter, code blocks, existing links, and URLs.",
+    schema: {
+      file: z.string().describe("Path to the note file to auto-link"),
+      dry_run: z
+        .boolean()
+        .optional()
+        .describe("Preview changes without writing (default: false)"),
+    },
+    handler: (a) => autoLinkTool(a as { file: string; dry_run?: boolean }),
   },
 
   // --- Vault Tools ---

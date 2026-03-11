@@ -37,6 +37,7 @@ vi.mock("../../src/embeddings/change.js", () => ({
     toDelete: [],
     currentCommit: "abc123",
   }),
+  commitIndexChanges: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {

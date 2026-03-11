@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, relative } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { chunkMarkdown } from "./chunk.js";
 import { openStore, chunkId } from "./store.js";
 import type { StoreHandle, ChunkRecord } from "./store.js";
 import { getQueryEmbedding, getEmbeddings } from "./model.js";
-import { detectChanges } from "./change.js";
+import { detectChanges, commitIndexChanges } from "./change.js";
 import { createHash } from "node:crypto";
 
 export interface SemanticSearchResult {
@@ -15,8 +15,16 @@ export interface SemanticSearchResult {
   score: number;
 }
 
+export interface IndexStats {
+  added: number;
+  deleted: number;
+  mode: "full" | "incremental";
+}
+
 let store: StoreHandle | null = null;
 let initialized = false;
+let currentVaultPath: string | null = null;
+let dbRelativePath: string | null = null;
 
 export function isAvailable(): boolean {
   return initialized && store !== null;
@@ -40,6 +48,8 @@ export async function initEmbeddingStore(
     await mkdir(dirname(resolvedDbPath), { recursive: true });
     store = openStore(resolvedDbPath);
     initialized = true;
+    currentVaultPath = vaultPath;
+    dbRelativePath = relative(vaultPath, resolvedDbPath);
     return true;
   } catch (e) {
     initialized = false;
@@ -122,10 +132,25 @@ export async function semanticSearch(
 }
 
 /**
+ * Public API: reindex the vault explicitly.
+ * Defaults to full reindex (force=true).
+ */
+export async function reindexVault(
+  vaultPath: string,
+  options?: { force?: boolean; modelId?: string },
+): Promise<IndexStats> {
+  if (store === null) {
+    throw new Error("Embedding store not initialized. Call initEmbeddingStore() first.");
+  }
+  const force = options?.force ?? true;
+  return indexVault(vaultPath, options?.modelId, force);
+}
+
+/**
  * Index changed files in the vault.
  */
-async function indexVault(vaultPath: string, modelId?: string, forceAll?: boolean): Promise<void> {
-  if (store === null) return;
+async function indexVault(vaultPath: string, modelId?: string, forceAll?: boolean): Promise<IndexStats> {
+  if (store === null) return { added: 0, deleted: 0, mode: "incremental" };
 
   const indexedFiles = forceAll
     ? []
@@ -177,6 +202,23 @@ async function indexVault(vaultPath: string, modelId?: string, forceAll?: boolea
   if (changes.currentCommit !== null) {
     store.setMeta("last_commit", changes.currentCommit);
   }
+
+  const stats: IndexStats = {
+    added: changes.toAdd.length,
+    deleted: changes.toDelete.length,
+    mode: forceAll ? "full" : "incremental",
+  };
+
+  // Commit DB changes so they're tracked alongside the vault content
+  if (currentVaultPath && dbRelativePath) {
+    await commitIndexChanges(currentVaultPath, dbRelativePath, {
+      added: stats.added,
+      deleted: stats.deleted,
+      mode: stats.mode,
+    });
+  }
+
+  return stats;
 }
 
 /**
@@ -187,5 +229,7 @@ export function closeStore(): void {
     store.close();
     store = null;
     initialized = false;
+    currentVaultPath = null;
+    dbRelativePath = null;
   }
 }
