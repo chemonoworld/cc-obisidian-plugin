@@ -50,7 +50,8 @@ export function openStore(dbPath: string): StoreHandle {
     Database = require("better-sqlite3");
   } catch {
     throw new Error(
-      "better-sqlite3 is not installed. Run: npm install better-sqlite3 @types/better-sqlite3"
+      "better-sqlite3 is not installed. Run: npm install better-sqlite3\n" +
+      "Requires C++ build tools (Xcode CLT on macOS, build-essential on Linux, Visual C++ Build Tools on Windows)."
     );
   }
 

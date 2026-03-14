@@ -27,7 +27,26 @@ async function getPipeline(modelId: string) {
       ) {
         throw new Error('Embedding dependencies not installed. Run `npm install @huggingface/transformers`.');
       }
-      throw new Error(`Failed to load embedding model "${modelId}": ${(e as Error).message}`);
+      const msg = (e as Error).message ?? String(e);
+      if (msg.includes('ENOSPC') || msg.includes('no space')) {
+        throw new Error(
+          `Not enough disk space to download model "${modelId}". ` +
+          `Models are cached at ~/.cache/huggingface/hub/ — free up space and retry.`
+        );
+      }
+      if (msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT') || msg.includes('fetch failed')) {
+        throw new Error(
+          `Network error while downloading model "${modelId}". ` +
+          `Check your internet connection and retry. Models are cached at ~/.cache/huggingface/hub/`
+        );
+      }
+      if (msg.includes('404') || msg.includes('not found')) {
+        throw new Error(
+          `Model "${modelId}" not found on Hugging Face Hub. ` +
+          `Verify the model ID is correct (default: Xenova/bge-m3).`
+        );
+      }
+      throw new Error(`Failed to load embedding model "${modelId}": ${msg}`);
     } finally {
       pipelinePromise = null;
     }
