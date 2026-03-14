@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "obsidian-vault": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./dist/index.js"
+      ]
+    }
+  }
+}
