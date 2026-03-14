@@ -1,16 +1,29 @@
 {
-  "name": "obsidian-vault-mcp",
+  "name": "obsidian-foundry",
   "version": "0.1.0",
+  "description": "MCP server for Obsidian vault — read, write, search, and semantically query notes from LLM clients",
   "type": "module",
+  "license": "MIT",
+  "author": "Jinwoo <jinwoo0451@naver.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chemonoworld/cc-obisidian-plugin"
+  },
+  "keywords": ["mcp", "obsidian", "vault", "semantic-search", "llm"],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": ["dist/", "README.md", "LICENSE"],
   "bin": {
-    "obsidian-vault-mcp": "./dist/index.js"
+    "obsidian-foundry": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build && chmod +x dist/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

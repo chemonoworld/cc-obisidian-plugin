@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   await loadConfig();
 
   const server = new McpServer({
-    name: "obsidian-vault-mcp",
+    name: "obsidian-foundry",
     version: "0.1.0",
   });
 
