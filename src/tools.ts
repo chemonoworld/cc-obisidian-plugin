@@ -5,6 +5,7 @@ import * as search from "./tools/search.js";
 import * as vault from "./tools/vault.js";
 import { semanticSearchTool, reindexTool } from "./tools/semantic.js";
 import { autoLinkTool } from "./tools/auto-link.js";
+import * as query from "./tools/query.js";
 import type { ToolResponse } from "./types.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResponse>;
@@ -136,21 +137,61 @@ const tools: ToolDef[] = [
     schema: {},
     handler: () => search.findOrphans(),
   },
-  // Security: eval_query is guarded by src/guardrail.ts (multi-layer static analysis).
-  // Kept because it enables irreplaceable power-user queries (graph traversal, plugin APIs).
-  // Future consideration: AST-based allowlist or code-preview confirmation mechanism.
+  // --- Query Tools ---
   {
-    name: "eval_query",
+    name: "list_files",
     description:
-      "Execute JavaScript code against the Obsidian API. Has access to the `app` object (vault, metadataCache, workspace, plugins). Use for advanced queries not covered by other tools.\n\nSecurity: Code is validated by a guardrail that blocks dangerous patterns (eval, require, fetch, Proxy, etc.). Vault write operations are blocked by default — set allow_write=true to enable. See guardrail docs for details.",
+      "List all files in the vault. Optionally filter by folder path or file extension.",
     schema: {
-      code: z.string().describe("JavaScript code to execute (has access to `app` object)"),
-      allow_write: z
-        .boolean()
-        .optional()
-        .describe("Allow vault write operations (default: false)"),
+      folder: z.string().optional().describe("Folder path to list (e.g. 'Projects/Active')"),
+      ext: z.string().optional().describe("File extension filter (e.g. 'md', 'pdf')"),
     },
-    handler: (a) => search.evalQuery(a as { code: string; allow_write?: boolean }),
+    handler: (a) => query.listFiles(a as { folder?: string; ext?: string }),
+  },
+  {
+    name: "list_links",
+    description:
+      "List all outgoing links from a note (wiki links, markdown links, embeds).",
+    schema: {
+      file: z.string().describe("Path to the note file"),
+    },
+    handler: (a) => query.listLinks(a as { file: string }),
+  },
+  {
+    name: "find_deadends",
+    description:
+      "Find notes that have no outgoing links (dead-end notes).",
+    schema: {},
+    handler: () => query.findDeadends(),
+  },
+  {
+    name: "find_unresolved",
+    description:
+      "Find unresolved links in the vault — wiki links that point to notes which do not exist yet.",
+    schema: {},
+    handler: () => query.findUnresolved(),
+  },
+  {
+    name: "list_tasks",
+    description:
+      "List tasks (checkboxes) across the vault or within a specific note. Filter by completion status.",
+    schema: {
+      file: z.string().optional().describe("Limit to tasks in this note"),
+      status: z.string().optional().describe("Filter by status character (e.g. 'x', '/', ' ')"),
+      done: z.boolean().optional().describe("Show only completed tasks"),
+      todo: z.boolean().optional().describe("Show only incomplete tasks"),
+    },
+    handler: (a) =>
+      query.listTasks(a as { file?: string; status?: string; done?: boolean; todo?: boolean }),
+  },
+  {
+    name: "dataview_query",
+    description:
+      "Execute a Dataview Query Language (DQL) query against the vault. Requires the Dataview plugin.\n\nExample: TABLE file.mtime, file.tags FROM \"Projects\" WHERE status = \"active\" SORT file.mtime DESC",
+    schema: {
+      query: z.string().describe("DQL query string (e.g. 'TABLE file.name FROM #tag')"),
+    },
+    handler: (a) => query.dataviewQuery(a as { query: string }),
   },
 
   // --- Semantic Search ---

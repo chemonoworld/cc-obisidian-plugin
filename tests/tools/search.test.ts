@@ -16,7 +16,6 @@ const {
   listProperties,
   getBacklinks,
   findOrphans,
-  evalQuery,
 } = await import("../../src/tools/search.js");
 
 describe("Search tools", () => {
@@ -127,61 +126,4 @@ describe("Search tools", () => {
     });
   });
 
-  describe("evalQuery", () => {
-    it("executes eval command for safe code", async () => {
-      mockExec.mockResolvedValue({
-        success: true,
-        raw: "42",
-        data: null,
-        error: null,
-      });
-      const res = await evalQuery({ code: "app.vault.getFiles().length" });
-      expect(res.isError).toBe(false);
-      expect(mockExec).toHaveBeenCalledWith(
-        "eval",
-        { code: "app.vault.getFiles().length" },
-        { vault: "TestVault" },
-      );
-    });
-
-    it("returns JSON data when available", async () => {
-      mockExec.mockResolvedValue({
-        success: true,
-        raw: '{"count":42}',
-        data: { count: 42 },
-        error: null,
-      });
-      const res = await evalQuery({ code: "app.vault.getFiles()" });
-      expect(JSON.parse(res.content[0].text)).toEqual({ count: 42 });
-    });
-
-    it("blocks dangerous code via guardrail", async () => {
-      const res = await evalQuery({ code: 'require("fs")' });
-      expect(res.isError).toBe(true);
-      expect(res.content[0].text).toContain("guardrail");
-      expect(mockExec).not.toHaveBeenCalled();
-    });
-
-    it("blocks vault writes by default", async () => {
-      const res = await evalQuery({
-        code: 'app.vault.create("new.md", "content")',
-      });
-      expect(res.isError).toBe(true);
-      expect(res.content[0].text).toContain("write");
-    });
-
-    it("allows vault writes when allow_write=true", async () => {
-      mockExec.mockResolvedValue({
-        success: true,
-        raw: "ok",
-        data: null,
-        error: null,
-      });
-      const res = await evalQuery({
-        code: 'app.vault.create("new.md", "content")',
-        allow_write: true,
-      });
-      expect(res.isError).toBe(false);
-    });
-  });
 });

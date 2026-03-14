@@ -1,6 +1,5 @@
 import { execObsidian } from "../cli.js";
 import { ok, fail, vault } from "./helpers.js";
-import { validateEvalCode } from "../guardrail.js";
 import type { ToolResponse } from "../types.js";
 
 export async function searchNotes(args: {
@@ -71,28 +70,3 @@ export async function findOrphans(_args: Record<string, never> = {}): Promise<To
   return ok(result.raw);
 }
 
-export async function evalQuery(args: {
-  code: string;
-  allow_write?: boolean;
-}): Promise<ToolResponse> {
-  const guardrail = validateEvalCode(args.code, {
-    allowWrite: args.allow_write,
-  });
-  if (!guardrail.allowed) {
-    return fail(
-      `Code blocked by security guardrail:\n${guardrail.violations.map((v) => `  - ${v}`).join("\n")}`,
-    );
-  }
-
-  const result = await execObsidian(
-    "eval",
-    { code: args.code },
-    { vault: vault() },
-  );
-  if (!result.success) return fail(result.error ?? "Unknown error");
-
-  if (result.data) {
-    return ok(JSON.stringify(result.data, null, 2));
-  }
-  return ok(result.raw);
-}

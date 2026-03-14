@@ -15,8 +15,8 @@ describe("Tool Registry", () => {
     vi.clearAllMocks();
   });
 
-  it("has 20 tools registered", () => {
-    expect(getAllTools().length).toBe(20);
+  it("has 25 tools registered", () => {
+    expect(getAllTools().length).toBe(25);
   });
 
   it("has unique tool names", () => {
@@ -55,7 +55,16 @@ describe("Tool Registry", () => {
     expect(names).toContain("list_properties");
     expect(names).toContain("get_backlinks");
     expect(names).toContain("find_orphans");
-    expect(names).toContain("eval_query");
+  });
+
+  it("contains expected query tools", () => {
+    const names = getAllTools().map((t) => t.name);
+    expect(names).toContain("list_files");
+    expect(names).toContain("list_links");
+    expect(names).toContain("find_deadends");
+    expect(names).toContain("find_unresolved");
+    expect(names).toContain("list_tasks");
+    expect(names).toContain("dataview_query");
   });
 
   it("contains expected vault tools", () => {
