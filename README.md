@@ -185,7 +185,7 @@ claude
 | `remove_property` | 프론트매터 프로퍼티 제거 |
 | `daily_note` | 오늘의 데일리 노트 읽기/추가 |
 
-### 검색 (6개)
+### 검색 (5개)
 
 | 도구 | 설명 |
 |------|------|
@@ -194,7 +194,17 @@ claude
 | `list_properties` | 사용 중인 프론트매터 프로퍼티 목록 |
 | `get_backlinks` | 특정 노트를 링크하는 노트들 조회 |
 | `find_orphans` | 들어오는 링크가 없는 고아 노트 탐색 |
-| `eval_query` | Obsidian API(`app` 객체)에 JavaScript 실행 (**주의: 임의 코드 실행**) |
+
+### 쿼리 (6개)
+
+| 도구 | 설명 |
+|------|------|
+| `list_files` | 볼트 내 파일 목록 (폴더, 확장자 필터 지원) |
+| `list_links` | 특정 노트의 아웃고잉 링크 목록 |
+| `find_deadends` | 아웃고잉 링크가 없는 데드엔드 노트 탐색 |
+| `find_unresolved` | 존재하지 않는 노트를 가리키는 미해결 링크 탐색 |
+| `list_tasks` | 볼트 내 태스크(체크박스) 목록 (파일, 완료 상태 필터) |
+| `dataview_query` | Dataview DQL 쿼리 실행 (Dataview 플러그인 필요) |
 
 ### 시맨틱 검색 & AI (3개)
 
@@ -261,13 +271,14 @@ semantic_search(
 ```
 src/
   index.ts              # MCP 서버 엔트리포인트
-  tools.ts              # 도구 레지스트리 (20개 도구 등록)
+  tools.ts              # 도구 레지스트리 (25개 도구 등록)
   config.ts             # 볼트 설정 관리
   cli.ts                # Obsidian CLI 래퍼
   types.ts              # 공통 타입 정의
   tools/
     crud.ts             # 노트 CRUD 핸들러
     search.ts           # 검색 도구 핸들러
+    query.ts            # 쿼리 도구 핸들러 (파일, 링크, 태스크, Dataview DQL)
     vault.ts            # 볼트 관리 핸들러
     semantic.ts         # 시맨틱 검색 + 리인덱싱 핸들러
     auto-link.ts        # 자동 링크 핸들러
@@ -283,25 +294,9 @@ tests/                  # Vitest 테스트
 
 ## 보안
 
-### eval_query 가드레일
-
-`eval_query`는 Obsidian의 `app` 객체에 JavaScript를 실행하는 강력한 도구입니다. 프롬프트 인젝션 등의 공격으로부터 보호하기 위해 다층 보안 가드레일이 적용됩니다:
-
-| 계층 | 차단 대상 |
-|------|-----------|
-| 코드 길이 제한 | 5,000자 초과 코드 |
-| 브라켓 표기법 탐지 | `obj['require']`, 문자열 연결 우회 시도 |
-| 차단 식별자 | `require`, `process`, `global`, `Buffer`, `module` 등 |
-| 코드 실행 차단 | `eval()`, `Function()`, `import()`, `setTimeout()` 등 |
-| 네트워크 차단 | `fetch()`, `XMLHttpRequest`, `WebSocket` |
-| 난독화 차단 | `atob()`, `String.fromCharCode` 등 |
-| 메타프로그래밍 차단 | `__proto__`, `Reflect`, `Proxy` |
-| 쓰기 작업 게이팅 | `vault.create/modify/delete` — 기본 차단, `allow_write=true`로 허용 |
-
-**주의사항**:
-- 가드레일은 정적 패턴 분석 기반이며, 모든 우회 시도를 100% 차단할 수는 없습니다
-- 신뢰할 수 있는 환경에서만 사용을 권장합니다
-- MCP 클라이언트가 생성하는 코드를 사용자가 실행 전 확인하는 것을 권장합니다
+- 모든 CLI 호출은 `execFile`을 사용하여 셸 인젝션을 방지합니다
+- `dataview_query`는 고정된 JavaScript 템플릿을 사용하며, 사용자 입력은 DQL 쿼리 문자열로만 제한됩니다 (`JSON.stringify`로 안전하게 삽입)
+- 임의의 JavaScript 실행 기능(`eval_query`)은 보안상의 이유로 제거되었습니다
 
 ## 개발
 
