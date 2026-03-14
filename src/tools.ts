@@ -136,14 +136,21 @@ const tools: ToolDef[] = [
     schema: {},
     handler: () => search.findOrphans(),
   },
+  // Security: eval_query is guarded by src/guardrail.ts (multi-layer static analysis).
+  // Kept because it enables irreplaceable power-user queries (graph traversal, plugin APIs).
+  // Future consideration: AST-based allowlist or code-preview confirmation mechanism.
   {
     name: "eval_query",
     description:
-      "Execute JavaScript code against the Obsidian API. Has access to the full `app` object (vault, metadataCache, workspace, plugins). Use for advanced queries not covered by other tools.",
+      "Execute JavaScript code against the Obsidian API. Has access to the `app` object (vault, metadataCache, workspace, plugins). Use for advanced queries not covered by other tools.\n\nSecurity: Code is validated by a guardrail that blocks dangerous patterns (eval, require, fetch, Proxy, etc.). Vault write operations are blocked by default — set allow_write=true to enable. See guardrail docs for details.",
     schema: {
       code: z.string().describe("JavaScript code to execute (has access to `app` object)"),
+      allow_write: z
+        .boolean()
+        .optional()
+        .describe("Allow vault write operations (default: false)"),
     },
-    handler: (a) => search.evalQuery(a as { code: string }),
+    handler: (a) => search.evalQuery(a as { code: string; allow_write?: boolean }),
   },
 
   // --- Semantic Search ---
